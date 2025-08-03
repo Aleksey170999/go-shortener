@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/Aleksey170999/go-shortener/internal/service"
+	"github.com/go-chi/chi/v5"
 )
 
 type Handler struct {
@@ -37,7 +38,7 @@ func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) RedirectHandler(w http.ResponseWriter, r *http.Request) {
-	id := r.URL.Path[1:]
+	id := chi.URLParam(r, "id")
 	if id == "" {
 		http.Error(w, "missing short url id", http.StatusBadRequest)
 		return
