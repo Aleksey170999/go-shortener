@@ -10,8 +10,9 @@ import (
 	"strings"
 )
 
+const defaultEndpoint = "http://localhost:8080/"
+
 func main() {
-	endpoint := "http://localhost:8080/"
 	data := url.Values{}
 	fmt.Println("Введите длинный URL")
 	reader := bufio.NewReader(os.Stdin)
@@ -22,7 +23,7 @@ func main() {
 	long = strings.TrimSuffix(long, "\n")
 	data.Set("url", long)
 	client := &http.Client{}
-	request, err := http.NewRequest(http.MethodPost, endpoint, strings.NewReader(data.Encode()))
+	request, err := http.NewRequest(http.MethodPost, defaultEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
 		panic(err)
 	}

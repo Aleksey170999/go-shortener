@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 
+	"github.com/Aleksey170999/go-shortener/internal/config"
 	"github.com/Aleksey170999/go-shortener/internal/handler"
 	"github.com/Aleksey170999/go-shortener/internal/repository"
 	"github.com/Aleksey170999/go-shortener/internal/service"
@@ -10,9 +11,10 @@ import (
 )
 
 func main() {
+	cfg := config.NewConfig()
 	repo := repository.NewMemoryURLRepository()
 	urlService := service.NewURLService(repo)
-	h := handler.NewHandler(urlService)
+	h := handler.NewHandler(urlService, cfg)
 	r := chi.NewRouter()
 	r.Route("/", func(r chi.Router) {
 		r.Post("/", h.ShortenURLHandler)
@@ -21,6 +23,5 @@ func main() {
 		})
 	},
 	)
-
-	http.ListenAndServe(":8080", r)
+	http.ListenAndServe(cfg.RunAddr, r)
 }
