@@ -6,25 +6,21 @@ import (
 	"github.com/Aleksey170999/go-shortener/internal/handler"
 	"github.com/Aleksey170999/go-shortener/internal/repository"
 	"github.com/Aleksey170999/go-shortener/internal/service"
+	"github.com/go-chi/chi/v5"
 )
 
 func main() {
 	repo := repository.NewMemoryURLRepository()
 	urlService := service.NewURLService(repo)
 	h := handler.NewHandler(urlService)
+	r := chi.NewRouter()
+	r.Route("/", func(r chi.Router) {
+		r.Post("/", h.ShortenURLHandler)
+		r.Route("/{id}", func(r chi.Router) {
+			r.Get("/", h.RedirectHandler)
+		})
+	},
+	)
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/" && r.Method == http.MethodPost {
-			h.ShortenURLHandler(w, r)
-			return
-		}
-		if r.URL.Path != "/" && r.Method == http.MethodGet {
-			h.RedirectHandler(w, r)
-			return
-		}
-		http.Error(w, "Not found", http.StatusNotFound)
-	})
-
-	http.ListenAndServe(":8080", mux)
+	http.ListenAndServe(":8080", r)
 }
