@@ -1,19 +1,22 @@
 package handler
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 
+	"github.com/Aleksey170999/go-shortener/internal/config"
 	"github.com/Aleksey170999/go-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
 )
 
 type Handler struct {
 	URLService *service.URLService
+	Cfg        *config.Config
 }
 
-func NewHandler(urlService *service.URLService) *Handler {
-	return &Handler{URLService: urlService}
+func NewHandler(urlService *service.URLService, cfg *config.Config) *Handler {
+	return &Handler{URLService: urlService, Cfg: cfg}
 }
 
 func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
@@ -32,7 +35,7 @@ func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
 		return
 	}
-	fullAddress := "http://localhost:8080/" + id
+	fullAddress := fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, id)
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(fullAddress))
 }
