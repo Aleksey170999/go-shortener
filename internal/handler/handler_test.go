@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Aleksey170999/go-shortener/internal/config"
 	"github.com/Aleksey170999/go-shortener/internal/repository"
 	"github.com/Aleksey170999/go-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -16,7 +17,11 @@ import (
 func setupTestHandler() *Handler {
 	repo := repository.NewMemoryURLRepository()
 	urlService := service.NewURLService(repo)
-	return NewHandler(urlService)
+	cfg := config.Config{
+		RunAddr:      "localhost:8080",
+		ReturnPrefix: "http://localhost:8080",
+	}
+	return NewHandler(urlService, &cfg)
 }
 
 func TestShortenURLHandler(t *testing.T) {
