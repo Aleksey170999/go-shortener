@@ -8,11 +8,13 @@ import (
 	"github.com/Aleksey170999/go-shortener/internal/config"
 	"github.com/Aleksey170999/go-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
+	"go.uber.org/zap"
 )
 
 type Handler struct {
 	URLService *service.URLService
 	Cfg        *config.Config
+	Logger     zap.Logger
 }
 
 func NewHandler(urlService *service.URLService, cfg *config.Config) *Handler {
