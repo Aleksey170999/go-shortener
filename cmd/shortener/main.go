@@ -5,6 +5,7 @@ import (
 
 	"github.com/Aleksey170999/go-shortener/internal/config"
 	"github.com/Aleksey170999/go-shortener/internal/handler"
+	"github.com/Aleksey170999/go-shortener/internal/middlewares"
 	"github.com/Aleksey170999/go-shortener/internal/repository"
 	"github.com/Aleksey170999/go-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
@@ -19,7 +20,8 @@ func main() {
 
 	h := handler.NewHandler(urlService, cfg)
 	r := chi.NewRouter()
-	r.Use(handler.WithLogging(&logger))
+	r.Use(middlewares.WithLogging(&logger))
+	r.Use(middlewares.GzipMiddleware)
 	r.Use(middleware.StripSlashes)
 
 	r.Route("/", func(r chi.Router) {
