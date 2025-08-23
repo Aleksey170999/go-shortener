@@ -8,6 +8,7 @@ import (
 	"github.com/Aleksey170999/go-shortener/internal/repository"
 	"github.com/Aleksey170999/go-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 )
 
 func main() {
@@ -19,13 +20,13 @@ func main() {
 	h := handler.NewHandler(urlService, cfg)
 	r := chi.NewRouter()
 	r.Use(handler.WithLogging(&logger))
+	r.Use(middleware.StripSlashes)
+
 	r.Route("/", func(r chi.Router) {
+		r.Post("/api/shorten", h.ShortenJSONURLHandler)
 		r.Post("/", h.ShortenURLHandler)
-		r.Route("/{id}", func(r chi.Router) {
-			r.Get("/", h.RedirectHandler)
-		})
-	},
-	)
+		r.Get("/{id}", h.RedirectHandler)
+	})
 	logger.Sugar().Infoln(
 		"msg", "Server starting",
 		"url", cfg.RunAddr,
