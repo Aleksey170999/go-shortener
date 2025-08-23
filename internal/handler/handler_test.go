@@ -1,7 +1,9 @@
 package handler
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -9,9 +11,11 @@ import (
 	"testing"
 
 	"github.com/Aleksey170999/go-shortener/internal/config"
+	"github.com/Aleksey170999/go-shortener/internal/model"
 	"github.com/Aleksey170999/go-shortener/internal/repository"
 	"github.com/Aleksey170999/go-shortener/internal/service"
 	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
 )
 
 func setupTestHandler() *Handler {
@@ -69,5 +73,32 @@ func TestRedirectHandler(t *testing.T) {
 	loc := redirectResp.Header.Get("Location")
 	if loc != "https://example.com" {
 		t.Errorf("expected Location 'https://example.com', got '%s'", loc)
+	}
+}
+
+func TestShortenJSONURLHandler(t *testing.T) {
+	h := setupTestHandler()
+	reqModel := model.ShortenJSONRequest{URL: "https://example.com"}
+	var buf bytes.Buffer
+	err := json.NewEncoder(&buf).Encode(reqModel)
+	if err != nil {
+		t.Fatalf("failed to encode JSON: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/", &buf)
+	w := httptest.NewRecorder()
+
+	h.ShortenJSONURLHandler(w, req)
+	var responseBody model.ShortenJSONResponse
+	resp := w.Result()
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read response body: %v", err)
+	}
+	err = json.Unmarshal(body, &responseBody)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, responseBody.Result)
+	if resp.StatusCode != http.StatusCreated {
+		t.Errorf("expected status 201, got %d", resp.StatusCode)
 	}
 }
