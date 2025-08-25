@@ -19,12 +19,14 @@ import (
 )
 
 func setupTestHandler() *Handler {
-	repo := repository.NewMemoryURLRepository()
-	urlService := service.NewURLService(repo)
 	cfg := config.Config{
-		RunAddr:      "localhost:8080",
-		ReturnPrefix: "http://localhost:8080",
+		RunAddr:         "localhost:8080",
+		ReturnPrefix:    "http://localhost:8080",
+		StorageFilePath: "./storage.json",
 	}
+	repo := repository.NewMemoryURLRepository(cfg.StorageFilePath)
+	urlService := service.NewURLService(repo)
+
 	return NewHandler(urlService, &cfg)
 }
 

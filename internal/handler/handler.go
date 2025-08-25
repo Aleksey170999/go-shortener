@@ -33,7 +33,7 @@ func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "empty url", http.StatusBadRequest)
 		return
 	}
-	id, err := h.URLService.Shorten(original)
+	id, err := h.URLService.Shorten(original, h.Cfg.StorageFilePath)
 	if err != nil {
 		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
 		return
@@ -44,12 +44,12 @@ func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) RedirectHandler(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	if id == "" {
+	shortURL := chi.URLParam(r, "id")
+	if shortURL == "" {
 		http.Error(w, "missing short url id", http.StatusBadRequest)
 		return
 	}
-	original, err := h.URLService.Resolve(id)
+	original, err := h.URLService.Resolve(shortURL)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -69,7 +69,7 @@ func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "empty url", http.StatusBadRequest)
 		return
 	}
-	id, err := h.URLService.Shorten(req.URL)
+	id, err := h.URLService.Shorten(req.URL, h.Cfg.StorageFilePath)
 	if err != nil {
 		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
 		return
