@@ -1,14 +1,32 @@
 package repository
 
 import (
+	"encoding/json"
+	"os"
 	"sync"
 
 	"github.com/Aleksey170999/go-shortener/internal/model"
 )
 
+func loadFromStorage(repo *memoryURLRepository, storagePath string) {
+	data, err := os.ReadFile(storagePath)
+	if err != nil {
+		return
+	}
+
+	var urls []model.URL
+	err = json.Unmarshal(data, &urls)
+	if err != nil {
+		return
+	}
+	for _, url := range urls {
+		repo.Save(&url)
+	}
+}
+
 type URLRepository interface {
 	Save(url *model.URL) error
-	FindByID(id string) (*model.URL, error)
+	FindByShortURL(shortURL string) (*model.URL, error)
 }
 
 type memoryURLRepository struct {
@@ -16,20 +34,22 @@ type memoryURLRepository struct {
 	mu   sync.RWMutex
 }
 
-func NewMemoryURLRepository() URLRepository {
-	return &memoryURLRepository{
+func NewMemoryURLRepository(storagePath string) *memoryURLRepository {
+	repo := memoryURLRepository{
 		data: make(map[string]*model.URL),
 	}
+	loadFromStorage(&repo, storagePath)
+	return &repo
 }
 
 func (r *memoryURLRepository) Save(url *model.URL) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.data[url.ID] = url
+	r.data[url.Short] = url
 	return nil
 }
 
-func (r *memoryURLRepository) FindByID(id string) (*model.URL, error) {
+func (r *memoryURLRepository) FindByShortURL(id string) (*model.URL, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	url, ok := r.data[id]

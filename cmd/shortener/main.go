@@ -14,7 +14,7 @@ import (
 
 func main() {
 	cfg := config.NewConfig()
-	repo := repository.NewMemoryURLRepository()
+	repo := repository.NewMemoryURLRepository(cfg.StorageFilePath)
 	urlService := service.NewURLService(repo)
 	logger := cfg.Logger
 
