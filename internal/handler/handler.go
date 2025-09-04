@@ -9,6 +9,7 @@ import (
 	"github.com/Aleksey170999/go-shortener/internal/config"
 	"github.com/Aleksey170999/go-shortener/internal/model"
 	"github.com/Aleksey170999/go-shortener/internal/service"
+	"github.com/Aleksey170999/go-shortener/internal/storage"
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
@@ -16,10 +17,11 @@ import (
 type Handler struct {
 	URLService *service.URLService
 	Cfg        *config.Config
+	Storage    *storage.Storage
 }
 
-func NewHandler(urlService *service.URLService, cfg *config.Config) *Handler {
-	return &Handler{URLService: urlService, Cfg: cfg}
+func NewHandler(urlService *service.URLService, cfg *config.Config, storage *storage.Storage) *Handler {
+	return &Handler{URLService: urlService, Cfg: cfg, Storage: storage}
 }
 
 func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
@@ -33,23 +35,24 @@ func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "empty url", http.StatusBadRequest)
 		return
 	}
-	id, err := h.URLService.Shorten(original)
+	url, err := h.URLService.Shorten(original)
 	if err != nil {
 		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
 		return
 	}
-	fullAddress := fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, id)
+	h.Storage.LoadToStorage(url)
+	fullAddress := fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, url.Short)
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(fullAddress))
 }
 
 func (h *Handler) RedirectHandler(w http.ResponseWriter, r *http.Request) {
-	id := chi.URLParam(r, "id")
-	if id == "" {
+	shortURL := chi.URLParam(r, "id")
+	if shortURL == "" {
 		http.Error(w, "missing short url id", http.StatusBadRequest)
 		return
 	}
-	original, err := h.URLService.Resolve(id)
+	original, err := h.URLService.Resolve(shortURL)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
@@ -69,13 +72,17 @@ func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "empty url", http.StatusBadRequest)
 		return
 	}
-	id, err := h.URLService.Shorten(req.URL)
+	url, err := h.URLService.Shorten(req.URL)
 	if err != nil {
 		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
 		return
 	}
+	if err := h.Storage.LoadToStorage(url); err != nil {
+		http.Error(w, "failed to store url to storage", http.StatusInternalServerError)
+		return
+	}
 	resp := model.ShortenJSONResponse{
-		Result: fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, id),
+		Result: fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, url.Short),
 	}
 	enc := json.NewEncoder(w)
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/Aleksey170999/go-shortener/internal/model"
 	"github.com/Aleksey170999/go-shortener/internal/repository"
+	"github.com/google/uuid"
 
 	"io"
 )
@@ -18,31 +19,32 @@ func NewURLService(repo repository.URLRepository) *URLService {
 	return &URLService{repo: repo}
 }
 
-func (s *URLService) Shorten(original string) (string, error) {
-	id, err := generateID(6)
+func (s *URLService) Shorten(original string) (*model.URL, error) {
+	shortURL, err := generateShortURL(6)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	url := &model.URL{
-		ID:       id,
+		ID:       uuid.New().String(),
 		Original: original,
+		Short:    shortURL,
 	}
 	err = s.repo.Save(url)
 	if err != nil {
-		return "", err
+		return url, err
 	}
-	return id, nil
+	return url, nil
 }
 
-func (s *URLService) Resolve(id string) (string, error) {
-	url, err := s.repo.FindByID(id)
+func (s *URLService) Resolve(shortURL string) (string, error) {
+	url, err := s.repo.FindByShortURL(shortURL)
 	if err != nil {
 		return "", err
 	}
 	return url.Original, nil
 }
 
-func generateID(n int) (string, error) {
+func generateShortURL(n int) (string, error) {
 	b := make([]byte, n)
 	_, err := io.ReadFull(rand.Reader, b)
 	if err != nil {
