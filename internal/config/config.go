@@ -14,6 +14,7 @@ type Config struct {
 	ReturnPrefix    string `env:"BASE_URL"`
 	Logger          zap.Logger
 	StorageFilePath string
+	DatabaseDSN     string
 }
 
 func ParseFlags() *Config {
@@ -21,6 +22,7 @@ func ParseFlags() *Config {
 	returnPrefix := flag.String("b", "http://localhost:8080", "Префикс для возвращаемых сокращённых URL (по умолчанию: http://localhost:8080)")
 	logLevel := flag.String("l", "info", "Уровень логирования: debug, info, warn, error")
 	storageFilePath := flag.String("f", "./storage.json", "Путь к файлу хранения данных")
+	databaseDSN := flag.String("d", "host=0.0.0.0 port=5432 user=postgres password=postgres dbname=shortenerdb sslmode=disable", "Параметры подключения к БД Postgres")
 
 	flag.Parse()
 	if envRunAddr := os.Getenv("SERVER_ADDRESS"); envRunAddr != "" {
@@ -32,6 +34,10 @@ func ParseFlags() *Config {
 	if envStorageFilePath := os.Getenv("FILE_STORAGE_PATH"); envStorageFilePath != "" {
 		storageFilePath = &envStorageFilePath
 	}
+	if envDatabaseDSN := os.Getenv("DATABASE_DSN"); envDatabaseDSN != "" {
+		databaseDSN = &envDatabaseDSN
+	}
+
 	var level zapcore.Level
 	if err := level.UnmarshalText([]byte(*logLevel)); err != nil {
 		level = zapcore.InfoLevel
@@ -42,6 +48,7 @@ func ParseFlags() *Config {
 		ReturnPrefix:    *returnPrefix,
 		Logger:          *logger,
 		StorageFilePath: *storageFilePath,
+		DatabaseDSN:     *databaseDSN,
 	}
 }
 
