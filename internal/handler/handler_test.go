@@ -14,18 +14,22 @@ import (
 	"github.com/Aleksey170999/go-shortener/internal/model"
 	"github.com/Aleksey170999/go-shortener/internal/repository"
 	"github.com/Aleksey170999/go-shortener/internal/service"
+	"github.com/Aleksey170999/go-shortener/internal/storage"
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 )
 
 func setupTestHandler() *Handler {
+	cfg := config.Config{
+		RunAddr:         "localhost:8080",
+		ReturnPrefix:    "http://localhost:8080",
+		StorageFilePath: "./storage.json",
+	}
+	storage := storage.NewStorage(cfg.StorageFilePath)
 	repo := repository.NewMemoryURLRepository()
 	urlService := service.NewURLService(repo)
-	cfg := config.Config{
-		RunAddr:      "localhost:8080",
-		ReturnPrefix: "http://localhost:8080",
-	}
-	return NewHandler(urlService, &cfg)
+
+	return NewHandler(urlService, &cfg, storage)
 }
 
 func TestShortenURLHandler(t *testing.T) {
