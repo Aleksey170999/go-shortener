@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/Aleksey170999/go-shortener/internal/config"
-	"github.com/Aleksey170999/go-shortener/internal/config/db"
+	db_pack "github.com/Aleksey170999/go-shortener/internal/config/db"
 	"github.com/Aleksey170999/go-shortener/internal/model"
 	"github.com/Aleksey170999/go-shortener/internal/service"
 	"github.com/Aleksey170999/go-shortener/internal/storage"
@@ -97,9 +97,10 @@ func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *Handler) PingDBHandler(w http.ResponseWriter, r *http.Request) {
-	err := db.PingDB(h.Cfg.DatabaseDSN)
+	err := db_pack.PingDB(h.Cfg.DatabaseDSN)
 	if err != nil {
 		http.Error(w, "failed to ping DB", http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
 	}
 	w.WriteHeader(http.StatusOK)
 }
