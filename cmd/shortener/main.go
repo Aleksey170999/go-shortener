@@ -15,9 +15,15 @@ import (
 
 func main() {
 	cfg := config.NewConfig()
+
 	storage := storage.NewStorage(cfg.StorageFilePath)
-	repo := repository.NewMemoryURLRepository()
-	storage.LoadFromStorage(repo)
+	var repo repository.URLRepository
+	if cfg.DatabaseDSN != "" {
+		repo = repository.NewDataBaseURLRepository(cfg)
+	} else {
+		repo = repository.NewMemoryURLRepository()
+		storage.LoadFromStorage(repo)
+	}
 	urlService := service.NewURLService(repo)
 	logger := cfg.Logger
 	h := handler.NewHandler(urlService, cfg, storage)

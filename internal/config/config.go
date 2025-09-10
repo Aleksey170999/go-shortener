@@ -22,7 +22,7 @@ func ParseFlags() *Config {
 	returnPrefix := flag.String("b", "http://localhost:8080", "Префикс для возвращаемых сокращённых URL (по умолчанию: http://localhost:8080)")
 	logLevel := flag.String("l", "info", "Уровень логирования: debug, info, warn, error")
 	storageFilePath := flag.String("f", "./storage.json", "Путь к файлу хранения данных")
-	databaseDSN := flag.String("d", "host=0.0.0.0 port=5432 user=postgres password=postgres dbname=shortenerdb sslmode=disable", "Параметры подключения к БД Postgres")
+	databaseDSN := flag.String("d", "", "DSN")
 
 	flag.Parse()
 	if envRunAddr := os.Getenv("SERVER_ADDRESS"); envRunAddr != "" {
