@@ -63,7 +63,7 @@ func (r *memoryURLRepository) FindByShortURL(id string) (*model.URL, error) {
 }
 
 func (r *dataBaseURLRepository) Save(url *model.URL) error {
-	_, err := r.db.Exec("INSERT INTO urls (original_url, short_url) VALUES ($1, $2)", url.Original, url.Short)
+	_, err := r.db.Exec("INSERT INTO urls (id, original_url, short_url) VALUES ($1, $2, $3)", url.ID, url.Original, url.Short)
 	if err != nil {
 		return err
 	}
