@@ -9,7 +9,7 @@ BEGIN
           AND table_name = 'urls'
     ) THEN
         CREATE TABLE urls (
-            id SERIAL PRIMARY KEY,
+            id VARCHAR(255) NOT NULL PRIMARY KEY,
             original_url VARCHAR(255) NOT NULL,
             short_url VARCHAR(255) NOT NULL
         );

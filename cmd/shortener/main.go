@@ -34,6 +34,7 @@ func main() {
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/ping", h.PingDBHandler)
+		r.Post("/api/shorten/batch", h.ShortenJSONURLBatchHandler)
 		r.Post("/api/shorten", h.ShortenJSONURLHandler)
 		r.Post("/", h.ShortenURLHandler)
 		r.Get("/{id}", h.RedirectHandler)
