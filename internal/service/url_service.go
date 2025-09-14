@@ -19,13 +19,19 @@ func NewURLService(repo repository.URLRepository) *URLService {
 	return &URLService{repo: repo}
 }
 
-func (s *URLService) Shorten(original string) (*model.URL, error) {
+func (s *URLService) Shorten(original string, id string) (*model.URL, error) {
 	shortURL, err := generateShortURL(6)
 	if err != nil {
 		return nil, err
 	}
+	var recID string
+	if id == "" {
+		recID = uuid.New().String()
+	} else {
+		recID = id
+	}
 	url := &model.URL{
-		ID:       uuid.New().String(),
+		ID:       recID,
 		Original: original,
 		Short:    shortURL,
 	}

@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/go-playground/validator/v10"
+
 	"github.com/Aleksey170999/go-shortener/internal/config"
 	db_pack "github.com/Aleksey170999/go-shortener/internal/config/db"
 	"github.com/Aleksey170999/go-shortener/internal/model"
@@ -14,6 +16,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"go.uber.org/zap"
 )
+
+var validate = validator.New()
 
 type Handler struct {
 	URLService *service.URLService
@@ -36,7 +40,7 @@ func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "empty url", http.StatusBadRequest)
 		return
 	}
-	url, err := h.URLService.Shorten(original)
+	url, err := h.URLService.Shorten(original, "")
 	if err != nil {
 		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
 		return
@@ -73,7 +77,7 @@ func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "empty url", http.StatusBadRequest)
 		return
 	}
-	url, err := h.URLService.Shorten(req.URL)
+	url, err := h.URLService.Shorten(req.URL, "")
 	if err != nil {
 		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
 		return
@@ -103,4 +107,36 @@ func (h *Handler) PingDBHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) ShortenJSONURLBatchHandler(w http.ResponseWriter, r *http.Request) {
+	var urls []model.RequestURLItem
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&urls); err != nil {
+		h.Cfg.Logger.Debug("cannot decode request JSON body", zap.Error(err))
+		http.Error(w, "ERROR", http.StatusInternalServerError)
+		return
+	}
+	for _, url := range urls {
+		if err := validate.Struct(url); err != nil {
+			http.Error(w, fmt.Sprintf("Ошибка валидации в элементе %s: %v", url, err), http.StatusBadRequest)
+			return
+		}
+	}
+
+	var responses []model.ResponseURLItem
+
+	for _, url := range urls {
+		shortenURL, err := h.URLService.Shorten(url.OriginalURL, url.СorrelationID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Ошибка сокращения: %s", err), http.StatusBadRequest)
+		}
+		responses = append(responses, model.ResponseURLItem{
+			CorrelationID: shortenURL.ID,
+			ShortURL:      fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, shortenURL.Short),
+		})
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(responses)
 }

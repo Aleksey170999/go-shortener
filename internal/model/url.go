@@ -13,3 +13,13 @@ type ShortenJSONRequest struct {
 type ShortenJSONResponse struct {
 	Result string `json:"result"`
 }
+
+type RequestURLItem struct {
+	СorrelationID string `json:"correlation_id" validate:"required"`
+	OriginalURL   string `json:"original_url" validate:"required"`
+}
+
+type ResponseURLItem struct {
+	CorrelationID string `json:"correlation_id"`
+	ShortURL      string `json:"short_url"`
+}
