@@ -8,6 +8,8 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
+	"errors"
+
 	"github.com/Aleksey170999/go-shortener/internal/config"
 	db_pack "github.com/Aleksey170999/go-shortener/internal/config/db"
 	"github.com/Aleksey170999/go-shortener/internal/model"
@@ -42,6 +44,14 @@ func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	url, err := h.URLService.Shorten(original, "")
 	if err != nil {
+		if errors.Is(err, model.ErrURLAlreadyExists) {
+			fullAddress := fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, url.Short)
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict) // 409
+			w.Write([]byte(fullAddress))
+			return
+		}
 		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
 		return
 	}
@@ -79,6 +89,15 @@ func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) 
 	}
 	url, err := h.URLService.Shorten(req.URL, "")
 	if err != nil {
+		if errors.Is(err, model.ErrURLAlreadyExists) {
+			resp := model.ShortenJSONResponse{
+				Result: fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, url.Short),
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict) // 409
+			json.NewEncoder(w).Encode(resp)
+			return
+		}
 		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
 		return
 	}
