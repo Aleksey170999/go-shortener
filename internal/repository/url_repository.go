@@ -14,6 +14,7 @@ import (
 type URLRepository interface {
 	Save(url *model.URL) error
 	FindByShortURL(shortURL string) (*model.URL, error)
+	GetByOriginalURL(originalURL string) (*model.URL, error)
 }
 
 type memoryURLRepository struct {
@@ -62,6 +63,18 @@ func (r *memoryURLRepository) FindByShortURL(id string) (*model.URL, error) {
 	return url, nil
 }
 
+func (r *memoryURLRepository) GetByOriginalURL(originalURL string) (*model.URL, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	for _, url := range r.data {
+		if url.Original == originalURL {
+			return url, nil
+		}
+	}
+
+	return nil, ErrNotFound
+}
 func (r *dataBaseURLRepository) Save(url *model.URL) error {
 	_, err := r.db.Exec("INSERT INTO urls (id, original_url, short_url) VALUES ($1, $2, $3)", url.ID, url.Original, url.Short)
 	if err != nil {
@@ -77,6 +90,17 @@ func (r *dataBaseURLRepository) FindByShortURL(id string) (*model.URL, error) {
 	err := row.Scan(&url.ID, &url.Original, &url.Short)
 	if err != nil {
 		return nil, err
+	}
+	return &url, nil
+}
+
+func (r *dataBaseURLRepository) GetByOriginalURL(originalURL string) (*model.URL, error) {
+	var url model.URL
+
+	row := r.db.QueryRow("SELECT id, original_url, short_url FROM urls WHERE original_url = $1;", originalURL)
+	err := row.Scan(&url.ID, &url.Original, &url.Short)
+	if err != nil {
+		return nil, ErrNotFound
 	}
 	return &url, nil
 }
