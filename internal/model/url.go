@@ -1,5 +1,7 @@
 package model
 
+import "errors"
+
 type URL struct {
 	ID       string `json:"uuid"`
 	Original string `json:"original_url"`
@@ -23,3 +25,5 @@ type ResponseURLItem struct {
 	CorrelationID string `json:"correlation_id"`
 	ShortURL      string `json:"short_url"`
 }
+
+var ErrURLAlreadyExists = errors.New("url already exists")

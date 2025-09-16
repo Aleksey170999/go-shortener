@@ -20,6 +20,10 @@ func NewURLService(repo repository.URLRepository) *URLService {
 }
 
 func (s *URLService) Shorten(original string, id string) (*model.URL, error) {
+	exist, _ := s.repo.GetByOriginalURL(original)
+	if exist != nil {
+		return exist, model.ErrURLAlreadyExists
+	}
 	shortURL, err := generateShortURL(6)
 	if err != nil {
 		return nil, err
