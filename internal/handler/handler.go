@@ -2,22 +2,24 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 
-	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 
-	"errors"
+	db_pack "github.com/Aleksey170999/go-shortener/internal/config/db"
 
 	"github.com/Aleksey170999/go-shortener/internal/config"
-	db_pack "github.com/Aleksey170999/go-shortener/internal/config/db"
 	"github.com/Aleksey170999/go-shortener/internal/middlewares"
 	"github.com/Aleksey170999/go-shortener/internal/model"
 	"github.com/Aleksey170999/go-shortener/internal/repository"
 	"github.com/Aleksey170999/go-shortener/internal/service"
 	"github.com/Aleksey170999/go-shortener/internal/storage"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-playground/validator/v10"
 	"go.uber.org/zap"
 )
 
@@ -34,12 +36,6 @@ func NewHandler(urlService *service.URLService, cfg *config.Config, storage *sto
 }
 
 func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
-	userID, err := middlewares.GetUserID(r)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "can't read body", http.StatusBadRequest)
@@ -50,8 +46,23 @@ func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "empty url", http.StatusBadRequest)
 		return
 	}
+	userID, _ := middlewares.GetUserID(r)
+
+	if userID == "" {
+		userID = uuid.New().String()
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "user_id",
+			Value:    userID,
+			Path:     "/",
+			HttpOnly: true,
+		})
+	}
 
 	url, err := h.URLService.Shorten(original, "", userID)
+	fmt.Println("___________Создаем____________")
+	fmt.Println(userID)
+	fmt.Println("___________Создаем____________")
 	if err != nil {
 		if errors.Is(err, model.ErrURLAlreadyExists) {
 			fullAddress := fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, url.Short)
@@ -85,12 +96,6 @@ func (h *Handler) RedirectHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) {
-	userID, err := middlewares.GetUserID(r)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	var req model.ShortenJSONRequest
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&req); err != nil {
@@ -103,6 +108,7 @@ func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	userID, _ := middlewares.GetUserID(r)
 	url, err := h.URLService.Shorten(req.URL, "", userID)
 	if err != nil {
 		if errors.Is(err, model.ErrURLAlreadyExists) {
@@ -137,12 +143,6 @@ func (h *Handler) PingDBHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ShortenJSONURLBatchHandler(w http.ResponseWriter, r *http.Request) {
-	userID, err := middlewares.GetUserID(r)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
 	var req []model.RequestURLItem
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&req); err != nil {
@@ -151,7 +151,6 @@ func (h *Handler) ShortenJSONURLBatchHandler(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	validate := validator.New()
 	for _, item := range req {
 		err := validate.Struct(item)
 		if err != nil {
@@ -161,6 +160,7 @@ func (h *Handler) ShortenJSONURLBatchHandler(w http.ResponseWriter, r *http.Requ
 	}
 
 	var resp []model.ResponseURLItem
+	userID, _ := middlewares.GetUserID(r)
 	for _, item := range req {
 		url, _ := h.URLService.Shorten(item.OriginalURL, item.СorrelationID, userID)
 		resp = append(resp, model.ResponseURLItem{
@@ -177,25 +177,42 @@ func (h *Handler) ShortenJSONURLBatchHandler(w http.ResponseWriter, r *http.Requ
 
 func (h *Handler) GetUserURLsHandler(w http.ResponseWriter, r *http.Request) {
 	userID, err := middlewares.GetUserID(r)
+	fmt.Println("___________Получаем___________")
+	fmt.Println(userID)
+	fmt.Println("___________Получаем___________")
+	fmt.Println(userID)
+
+	w.Header().Set("Content-Type", "application/json")
+	if userID == "" {
+		log.Printf("[GetUserURLsHandler] userID is empty")
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		log.Printf("[GetUserURLsHandler] error getting userID: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	urls, err := h.URLService.GetUserURLs(userID)
 	if err != nil {
 		if err == repository.ErrNotFound {
+			log.Printf("[GetUserURLsHandler] no urls found for userID=%s", userID)
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		http.Error(w, "failed to get user URLs", http.StatusInternalServerError)
+		log.Printf("[GetUserURLsHandler] error fetching urls for userID=%s: %v", userID, err)
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
 	if len(urls) == 0 {
+		log.Printf("[GetUserURLsHandler] urls list empty for userID=%s", userID)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
+
+	log.Printf("[GetUserURLsHandler] found %d urls for userID=%s", len(urls), userID)
 
 	resp := make([]model.UserURLsResponse, 0, len(urls))
 	for _, url := range urls {
@@ -205,7 +222,6 @@ func (h *Handler) GetUserURLsHandler(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
 }

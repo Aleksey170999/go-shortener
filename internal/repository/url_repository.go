@@ -12,7 +12,6 @@ import (
 )
 
 type URLRepository interface {
-	FindByShortURL(shortURL string) (*model.URL, error)
 	Save(url *model.URL) (*model.URL, error)
 	GetByShortURL(shortURL string) (*model.URL, error)
 	GetByUserID(userID string) ([]model.URL, error)
@@ -64,12 +63,28 @@ func (r *memoryURLRepository) GetByShortURL(id string) (*model.URL, error) {
 	}
 	return url, nil
 }
+func (r *memoryURLRepository) GetByUserID(userID string) ([]model.URL, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
+	var userURLs []model.URL
+	for _, url := range r.data {
+		if url.UserID == userID {
+			userURLs = append(userURLs, *url)
+		}
+	}
+
+	if len(userURLs) == 0 {
+		return nil, ErrNotFound
+	}
+
+	return userURLs, nil
+}
 func (r *dataBaseURLRepository) Save(url *model.URL) (*model.URL, error) {
 	var isConflict bool
 	insertSQL := `WITH inserted AS (
 						INSERT INTO urls (id, short_url, original_url, user_id)
-						VALUES ($1, $2, $3)
+						VALUES ($1, $2, $3, $4)
 						ON CONFLICT (original_url) DO NOTHING
 						RETURNING *
 					)
