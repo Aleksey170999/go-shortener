@@ -12,8 +12,8 @@ import (
 )
 
 type URLRepository interface {
-	Save(url *model.URL) error
-	FindByShortURL(shortURL string) (*model.URL, error)
+	Save(url *model.URL) (*model.URL, error)
+	GetByShortURL(shortURL string) (*model.URL, error)
 }
 
 type memoryURLRepository struct {
@@ -45,14 +45,14 @@ func NewDataBaseURLRepository(cfg *config.Config) *dataBaseURLRepository {
 	return &repo
 }
 
-func (r *memoryURLRepository) Save(url *model.URL) error {
+func (r *memoryURLRepository) Save(url *model.URL) (*model.URL, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.data[url.Short] = url
-	return nil
+	return url, nil
 }
 
-func (r *memoryURLRepository) FindByShortURL(id string) (*model.URL, error) {
+func (r *memoryURLRepository) GetByShortURL(id string) (*model.URL, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	url, ok := r.data[id]
@@ -62,15 +62,31 @@ func (r *memoryURLRepository) FindByShortURL(id string) (*model.URL, error) {
 	return url, nil
 }
 
-func (r *dataBaseURLRepository) Save(url *model.URL) error {
-	_, err := r.db.Exec("INSERT INTO urls (id, original_url, short_url) VALUES ($1, $2, $3)", url.ID, url.Original, url.Short)
+func (r *dataBaseURLRepository) Save(url *model.URL) (*model.URL, error) {
+	var isConflict bool
+	insertSQL := `WITH inserted AS (
+						INSERT INTO urls (id, short_url, original_url)
+						VALUES ($1, $2, $3)
+						ON CONFLICT (original_url) DO NOTHING
+						RETURNING *
+					)
+					select id, short_url, false as is_conflict FROM inserted
+					UNION
+					SELECT id, short_url, true as is_conflict FROM urls 
+					WHERE original_url = $3 AND NOT EXISTS (SELECT 1 FROM inserted)`
+	err := r.db.QueryRow(insertSQL, url.ID, url.Short, url.Original).
+		Scan(&url.ID, &url.Short, &isConflict)
+
 	if err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+	if isConflict {
+		return url, model.ErrURLAlreadyExists
+	}
+	return url, nil
 }
 
-func (r *dataBaseURLRepository) FindByShortURL(id string) (*model.URL, error) {
+func (r *dataBaseURLRepository) GetByShortURL(id string) (*model.URL, error) {
 	var url model.URL
 
 	row := r.db.QueryRow("SELECT id, original_url, short_url FROM urls WHERE short_url = $1;", id)

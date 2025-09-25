@@ -36,7 +36,8 @@ func (s *Storage) LoadFromStorage(repo repository.URLRepository) error {
 	}
 
 	for i := range urls {
-		if err := repo.Save(&urls[i]); err != nil {
+		_, err := repo.Save(&urls[i])
+		if err != nil {
 			return err
 		}
 	}
