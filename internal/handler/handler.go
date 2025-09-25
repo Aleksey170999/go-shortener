@@ -10,7 +10,9 @@ import (
 
 	"github.com/Aleksey170999/go-shortener/internal/config"
 	db_pack "github.com/Aleksey170999/go-shortener/internal/config/db"
+	"github.com/Aleksey170999/go-shortener/internal/middlewares"
 	"github.com/Aleksey170999/go-shortener/internal/model"
+	"github.com/Aleksey170999/go-shortener/internal/repository"
 	"github.com/Aleksey170999/go-shortener/internal/service"
 	"github.com/Aleksey170999/go-shortener/internal/storage"
 	"github.com/go-chi/chi/v5"
@@ -30,6 +32,12 @@ func NewHandler(urlService *service.URLService, cfg *config.Config, storage *sto
 }
 
 func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
+	userID, err := middlewares.GetUserID(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "can't read body", http.StatusBadRequest)
@@ -40,7 +48,8 @@ func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "empty url", http.StatusBadRequest)
 		return
 	}
-	url, err := h.URLService.Shorten(original, "")
+
+	url, err := h.URLService.Shorten(original, "", userID)
 	if err != nil {
 		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
 		return
@@ -66,6 +75,12 @@ func (h *Handler) RedirectHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) {
+	userID, err := middlewares.GetUserID(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
 	var req model.ShortenJSONRequest
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&req); err != nil {
@@ -77,27 +92,20 @@ func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "empty url", http.StatusBadRequest)
 		return
 	}
-	url, err := h.URLService.Shorten(req.URL, "")
+
+	url, err := h.URLService.Shorten(req.URL, "", userID)
 	if err != nil {
 		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
 		return
 	}
-	if err := h.Storage.LoadToStorage(url); err != nil {
-		http.Error(w, "failed to store url to storage", http.StatusInternalServerError)
-		return
-	}
+
+	h.Storage.LoadToStorage(url)
 	resp := model.ShortenJSONResponse{
 		Result: fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, url.Short),
 	}
-	enc := json.NewEncoder(w)
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-
-	if err := enc.Encode(resp); err != nil {
-		h.Cfg.Logger.Debug("error encoding response", zap.Error(err))
-		return
-	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *Handler) PingDBHandler(w http.ResponseWriter, r *http.Request) {
@@ -110,33 +118,75 @@ func (h *Handler) PingDBHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) ShortenJSONURLBatchHandler(w http.ResponseWriter, r *http.Request) {
-	var urls []model.RequestURLItem
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&urls); err != nil {
-		h.Cfg.Logger.Debug("cannot decode request JSON body", zap.Error(err))
-		http.Error(w, "ERROR", http.StatusInternalServerError)
+	userID, err := middlewares.GetUserID(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	for _, url := range urls {
-		if err := validate.Struct(url); err != nil {
-			http.Error(w, fmt.Sprintf("Ошибка валидации в элементе %s: %v", url, err), http.StatusBadRequest)
+
+	var req []model.RequestURLItem
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&req); err != nil {
+		h.Cfg.Logger.Debug("cannot decode request JSON body", zap.Error(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	validate := validator.New()
+	for _, item := range req {
+		err := validate.Struct(item)
+		if err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
 	}
 
-	var responses []model.ResponseURLItem
-
-	for _, url := range urls {
-		shortenURL, err := h.URLService.Shorten(url.OriginalURL, url.СorrelationID)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Ошибка сокращения: %s", err), http.StatusBadRequest)
-		}
-		responses = append(responses, model.ResponseURLItem{
-			CorrelationID: shortenURL.ID,
-			ShortURL:      fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, shortenURL.Short),
+	var resp []model.ResponseURLItem
+	for _, item := range req {
+		url, _ := h.URLService.Shorten(item.OriginalURL, item.СorrelationID, userID)
+		resp = append(resp, model.ResponseURLItem{
+			CorrelationID: item.СorrelationID,
+			ShortURL:      fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, url.Short),
 		})
+		h.Storage.LoadToStorage(url)
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(responses)
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *Handler) GetUserURLsHandler(w http.ResponseWriter, r *http.Request) {
+	userID, err := middlewares.GetUserID(r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	urls, err := h.URLService.GetUserURLs(userID)
+	if err != nil {
+		if err == repository.ErrNotFound {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		http.Error(w, "failed to get user URLs", http.StatusInternalServerError)
+		return
+	}
+
+	if len(urls) == 0 {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
+	resp := make([]model.UserURLsResponse, 0, len(urls))
+	for _, url := range urls {
+		resp = append(resp, model.UserURLsResponse{
+			ShortURL:    fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, url.Short),
+			OriginalURL: url.Original,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
 }
