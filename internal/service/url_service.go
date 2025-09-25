@@ -35,7 +35,7 @@ func (s *URLService) Shorten(original string, id string) (*model.URL, error) {
 		Original: original,
 		Short:    shortURL,
 	}
-	err = s.repo.Save(url)
+	url, err = s.repo.Save(url)
 	if err != nil {
 		return url, err
 	}
@@ -43,7 +43,7 @@ func (s *URLService) Shorten(original string, id string) (*model.URL, error) {
 }
 
 func (s *URLService) Resolve(shortURL string) (string, error) {
-	url, err := s.repo.FindByShortURL(shortURL)
+	url, err := s.repo.GetByShortURL(shortURL)
 	if err != nil {
 		return "", err
 	}

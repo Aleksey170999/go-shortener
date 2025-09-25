@@ -15,6 +15,8 @@ BEGIN
         );
     END IF;
 END $$;
+CREATE UNIQUE INDEX unique_orig_name ON urls (original_url);
+
 -- +goose StatementEnd
 
 -- +goose Down
