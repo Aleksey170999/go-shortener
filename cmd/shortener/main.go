@@ -31,6 +31,7 @@ func main() {
 	r.Use(middlewares.WithLogging(&logger))
 	r.Use(middlewares.GzipMiddleware)
 	r.Use(middleware.StripSlashes)
+	r.Use(middlewares.AuthMiddleware)
 
 	r.Route("/", func(r chi.Router) {
 		r.Get("/ping", h.PingDBHandler)
@@ -38,6 +39,7 @@ func main() {
 		r.Post("/api/shorten", h.ShortenJSONURLHandler)
 		r.Post("/", h.ShortenURLHandler)
 		r.Get("/{id}", h.RedirectHandler)
+		r.Get("/api/user/urls", h.GetUserURLsHandler)
 	})
 	logger.Sugar().Infoln(
 		"msg", "Server starting",

@@ -19,7 +19,7 @@ func NewURLService(repo repository.URLRepository) *URLService {
 	return &URLService{repo: repo}
 }
 
-func (s *URLService) Shorten(original string, id string) (*model.URL, error) {
+func (s *URLService) Shorten(original, id, userID string) (*model.URL, error) {
 	shortURL, err := generateShortURL(6)
 	if err != nil {
 		return nil, err
@@ -34,6 +34,7 @@ func (s *URLService) Shorten(original string, id string) (*model.URL, error) {
 		ID:       recID,
 		Original: original,
 		Short:    shortURL,
+		UserID:   userID,
 	}
 	url, err = s.repo.Save(url)
 	if err != nil {
@@ -48,6 +49,10 @@ func (s *URLService) Resolve(shortURL string) (string, error) {
 		return "", err
 	}
 	return url.Original, nil
+}
+
+func (s *URLService) GetUserURLs(userID string) ([]model.URL, error) {
+	return s.repo.GetByUserID(userID)
 }
 
 func generateShortURL(n int) (string, error) {
