@@ -14,6 +14,7 @@ import (
 type URLRepository interface {
 	Save(url *model.URL) (*model.URL, error)
 	GetByShortURL(shortURL string) (*model.URL, error)
+	GetByUserID(userID string) ([]model.URL, error)
 }
 
 type memoryURLRepository struct {
@@ -55,18 +56,35 @@ func (r *memoryURLRepository) Save(url *model.URL) (*model.URL, error) {
 func (r *memoryURLRepository) GetByShortURL(id string) (*model.URL, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
-	url, ok := r.data[id]
-	if !ok {
-		return nil, ErrNotFound
+
+	url, exists := r.data[id]
+	if !exists {
+		return nil, fmt.Errorf("url not found: %w", ErrNotFound)
 	}
 	return url, nil
 }
+func (r *memoryURLRepository) GetByUserID(userID string) ([]model.URL, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 
+	var userURLs []model.URL
+	for _, url := range r.data {
+		if url.UserID == userID {
+			userURLs = append(userURLs, *url)
+		}
+	}
+
+	if len(userURLs) == 0 {
+		return nil, ErrNotFound
+	}
+
+	return userURLs, nil
+}
 func (r *dataBaseURLRepository) Save(url *model.URL) (*model.URL, error) {
 	var isConflict bool
 	insertSQL := `WITH inserted AS (
-						INSERT INTO urls (id, short_url, original_url)
-						VALUES ($1, $2, $3)
+						INSERT INTO urls (id, short_url, original_url, user_id)
+						VALUES ($1, $2, $3, $4)
 						ON CONFLICT (original_url) DO NOTHING
 						RETURNING *
 					)
@@ -74,7 +92,7 @@ func (r *dataBaseURLRepository) Save(url *model.URL) (*model.URL, error) {
 					UNION
 					SELECT id, short_url, true as is_conflict FROM urls 
 					WHERE original_url = $3 AND NOT EXISTS (SELECT 1 FROM inserted)`
-	err := r.db.QueryRow(insertSQL, url.ID, url.Short, url.Original).
+	err := r.db.QueryRow(insertSQL, url.ID, url.Short, url.Original, url.UserID).
 		Scan(&url.ID, &url.Short, &isConflict)
 
 	if err != nil {
@@ -88,13 +106,42 @@ func (r *dataBaseURLRepository) Save(url *model.URL) (*model.URL, error) {
 
 func (r *dataBaseURLRepository) GetByShortURL(id string) (*model.URL, error) {
 	var url model.URL
-
-	row := r.db.QueryRow("SELECT id, original_url, short_url FROM urls WHERE short_url = $1;", id)
-	err := row.Scan(&url.ID, &url.Original, &url.Short)
+	err := r.db.QueryRow("SELECT id, short_url, original_url, user_id FROM urls WHERE short_url = $1", id).
+		Scan(&url.ID, &url.Short, &url.Original, &url.UserID)
 	if err != nil {
-		return nil, err
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("url not found: %w", ErrNotFound)
+		}
+		return nil, fmt.Errorf("failed to get url: %w", err)
 	}
 	return &url, nil
+}
+
+func (r *dataBaseURLRepository) GetByUserID(userID string) ([]model.URL, error) {
+	rows, err := r.db.Query("SELECT id, short_url, original_url, user_id FROM urls WHERE user_id = $1", userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query user urls: %w", err)
+	}
+	defer rows.Close()
+
+	var urls []model.URL
+	for rows.Next() {
+		var url model.URL
+		if err := rows.Scan(&url.ID, &url.Short, &url.Original, &url.UserID); err != nil {
+			return nil, fmt.Errorf("failed to scan url: %w", err)
+		}
+		urls = append(urls, url)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating urls: %w", err)
+	}
+
+	if len(urls) == 0 {
+		return nil, ErrNotFound
+	}
+
+	return urls, nil
 }
 
 var ErrNotFound = &NotFoundError{}
