@@ -60,9 +60,6 @@ func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	url, err := h.URLService.Shorten(original, "", userID)
-	fmt.Println("___________Создаем____________")
-	fmt.Println(userID)
-	fmt.Println("___________Создаем____________")
 	if err != nil {
 		if errors.Is(err, model.ErrURLAlreadyExists) {
 			fullAddress := fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, url.Short)
@@ -87,12 +84,16 @@ func (h *Handler) RedirectHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing short url id", http.StatusBadRequest)
 		return
 	}
-	original, err := h.URLService.Resolve(shortURL)
+	url, err := h.URLService.Resolve(shortURL)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	http.Redirect(w, r, original, http.StatusTemporaryRedirect)
+	if url.IsDeleted {
+		http.Error(w, "gone", http.StatusGone)
+		return
+	}
+	http.Redirect(w, r, url.Original, http.StatusTemporaryRedirect)
 }
 
 func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) {
@@ -177,10 +178,6 @@ func (h *Handler) ShortenJSONURLBatchHandler(w http.ResponseWriter, r *http.Requ
 
 func (h *Handler) GetUserURLsHandler(w http.ResponseWriter, r *http.Request) {
 	userID, err := middlewares.GetUserID(r)
-	fmt.Println("___________Получаем___________")
-	fmt.Println(userID)
-	fmt.Println("___________Получаем___________")
-	fmt.Println(userID)
 
 	w.Header().Set("Content-Type", "application/json")
 	if userID == "" {
@@ -224,4 +221,23 @@ func (h *Handler) GetUserURLsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *Handler) BatchDeleteUserURLsHandler(w http.ResponseWriter, r *http.Request) {
+	userID, err := middlewares.GetUserID(r)
+	if err != nil {
+		log.Print(err)
+	}
+	var shortUrls []string
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&shortUrls); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	err = h.URLService.BatchDelete(shortUrls, userID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusAccepted)
 }

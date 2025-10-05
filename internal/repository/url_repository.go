@@ -3,6 +3,7 @@ package repository
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"sync"
 
 	"github.com/Aleksey170999/go-shortener/internal/config"
@@ -15,6 +16,7 @@ type URLRepository interface {
 	Save(url *model.URL) (*model.URL, error)
 	GetByShortURL(shortURL string) (*model.URL, error)
 	GetByUserID(userID string) ([]model.URL, error)
+	BatchDelete(shortURLs []string, userID string) error
 }
 
 type memoryURLRepository struct {
@@ -106,8 +108,8 @@ func (r *dataBaseURLRepository) Save(url *model.URL) (*model.URL, error) {
 
 func (r *dataBaseURLRepository) GetByShortURL(id string) (*model.URL, error) {
 	var url model.URL
-	err := r.db.QueryRow("SELECT id, short_url, original_url, user_id FROM urls WHERE short_url = $1", id).
-		Scan(&url.ID, &url.Short, &url.Original, &url.UserID)
+	err := r.db.QueryRow("SELECT id, short_url, original_url, user_id, is_deleted FROM urls WHERE short_url = $1", id).
+		Scan(&url.ID, &url.Short, &url.Original, &url.UserID, &url.IsDeleted)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("url not found: %w", ErrNotFound)
@@ -142,6 +144,49 @@ func (r *dataBaseURLRepository) GetByUserID(userID string) ([]model.URL, error) 
 	}
 
 	return urls, nil
+}
+
+func (r *dataBaseURLRepository) BatchDelete(shortURLs []string, userID string) error {
+	tx, err := r.db.Begin()
+	if err != nil {
+		log.Printf("Failed to begin transaction: %v", err)
+		return err
+	}
+	stmt, err := tx.Prepare(`
+				UPDATE urls 
+				SET is_deleted = TRUE 
+				WHERE short_url = $1 AND user_id = $2`)
+	if err != nil {
+		log.Printf("Failed to prepare statement: %v", err)
+		return err
+	}
+	defer stmt.Close()
+	for _, short := range shortURLs {
+		_, err := stmt.Exec(short, userID)
+		if err != nil {
+			log.Print(err)
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		log.Printf("Failed to commit transaction: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (r *memoryURLRepository) BatchDelete(shortURLs []string, userID string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for _, short := range shortURLs {
+		if url, exists := r.data[short]; exists {
+			if url.UserID == userID && !url.IsDeleted {
+				url.IsDeleted = true
+			}
+		}
+	}
+
+	return nil
 }
 
 var ErrNotFound = &NotFoundError{}

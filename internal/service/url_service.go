@@ -43,12 +43,12 @@ func (s *URLService) Shorten(original, id, userID string) (*model.URL, error) {
 	return url, nil
 }
 
-func (s *URLService) Resolve(shortURL string) (string, error) {
+func (s *URLService) Resolve(shortURL string) (*model.URL, error) {
 	url, err := s.repo.GetByShortURL(shortURL)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return url.Original, nil
+	return url, nil
 }
 
 func (s *URLService) GetUserURLs(userID string) ([]model.URL, error) {
@@ -62,4 +62,12 @@ func generateShortURL(n int) (string, error) {
 		return "", err
 	}
 	return base64.RawURLEncoding.EncodeToString(b)[:n], nil
+}
+
+func (s *URLService) BatchDelete(shortURLs []string, userID string) error {
+	err := s.repo.BatchDelete(shortURLs, userID)
+	if err != nil {
+		return err
+	}
+	return nil
 }
