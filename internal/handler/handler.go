@@ -234,10 +234,11 @@ func (h *Handler) BatchDeleteUserURLsHandler(w http.ResponseWriter, r *http.Requ
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	err = h.URLService.BatchDelete(shortUrls, userID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
+	go func(shortUrls []string, userID string) {
+		err := h.URLService.BatchDelete(shortUrls, userID)
+		if err != nil {
+			log.Printf("[BatchDeleteUserURLsHandler] async BatchDelete error: %v", err)
+		}
+	}(shortUrls, userID)
 	w.WriteHeader(http.StatusAccepted)
 }

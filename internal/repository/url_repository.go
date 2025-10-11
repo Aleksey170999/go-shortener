@@ -10,6 +10,7 @@ import (
 	db "github.com/Aleksey170999/go-shortener/internal/config/db"
 	"github.com/Aleksey170999/go-shortener/internal/model"
 	_ "github.com/jackc/pgx/v5"
+	"github.com/lib/pq"
 )
 
 type URLRepository interface {
@@ -147,28 +148,13 @@ func (r *dataBaseURLRepository) GetByUserID(userID string) ([]model.URL, error) 
 }
 
 func (r *dataBaseURLRepository) BatchDelete(shortURLs []string, userID string) error {
-	tx, err := r.db.Begin()
+	if len(shortURLs) == 0 {
+		return nil
+	}
+	query := `UPDATE urls SET is_deleted = TRUE WHERE short_url = ANY($1) AND user_id = $2`
+	_, err := r.db.Exec(query, pq.Array(shortURLs), userID)
 	if err != nil {
-		log.Printf("Failed to begin transaction: %v", err)
-		return err
-	}
-	stmt, err := tx.Prepare(`
-				UPDATE urls 
-				SET is_deleted = TRUE 
-				WHERE short_url = $1 AND user_id = $2`)
-	if err != nil {
-		log.Printf("Failed to prepare statement: %v", err)
-		return err
-	}
-	defer stmt.Close()
-	for _, short := range shortURLs {
-		_, err := stmt.Exec(short, userID)
-		if err != nil {
-			log.Print(err)
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		log.Printf("Failed to commit transaction: %v", err)
+		log.Printf("BatchDelete error: %v", err)
 		return err
 	}
 	return nil
@@ -182,6 +168,7 @@ func (r *memoryURLRepository) BatchDelete(shortURLs []string, userID string) err
 		if url, exists := r.data[short]; exists {
 			if url.UserID == userID && !url.IsDeleted {
 				url.IsDeleted = true
+				r.data[short] = url
 			}
 		}
 	}
