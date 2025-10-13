@@ -40,6 +40,7 @@ func main() {
 		r.Post("/", h.ShortenURLHandler)
 		r.Get("/{id}", h.RedirectHandler)
 		r.Get("/api/user/urls", h.GetUserURLsHandler)
+		r.Delete("/api/user/urls", h.BatchDeleteUserURLsHandler)
 	})
 	logger.Sugar().Infoln(
 		"msg", "Server starting",
