@@ -10,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Aleksey170999/go-shortener/internal/audit"
+
 	"github.com/Aleksey170999/go-shortener/internal/config"
 	"github.com/Aleksey170999/go-shortener/internal/model"
 	"github.com/Aleksey170999/go-shortener/internal/repository"
@@ -28,8 +30,8 @@ func setupTestHandler() *Handler {
 	storage := storage.NewStorage(cfg.StorageFilePath)
 	repo := repository.NewMemoryURLRepository()
 	urlService := service.NewURLService(repo)
-
-	return NewHandler(urlService, &cfg, storage)
+	auditManager := audit.NewAuditManager()
+	return NewHandler(urlService, &cfg, storage, auditManager)
 }
 
 func TestShortenURLHandler(t *testing.T) {

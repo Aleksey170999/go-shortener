@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 
+	"github.com/Aleksey170999/go-shortener/internal/audit"
 	"github.com/Aleksey170999/go-shortener/internal/config"
 	"github.com/Aleksey170999/go-shortener/internal/handler"
 	"github.com/Aleksey170999/go-shortener/internal/middlewares"
@@ -16,6 +17,18 @@ import (
 func main() {
 	cfg := config.NewConfig()
 
+	auditManager := audit.NewAuditManager()
+
+	if cfg.AuditFile != "" {
+		fileAudit := audit.NewFileAudit(cfg.AuditFile)
+		auditManager.RegisterWriter(fileAudit)
+	}
+
+	if cfg.AuditURL != "" {
+		remoteAudit := audit.NewRemoteAudit(cfg.AuditURL)
+		auditManager.RegisterWriter(remoteAudit)
+	}
+
 	storage := storage.NewStorage(cfg.StorageFilePath)
 	var repo repository.URLRepository
 	if cfg.DatabaseDSN != "" {
@@ -24,9 +37,10 @@ func main() {
 		repo = repository.NewMemoryURLRepository()
 		storage.LoadFromStorage(repo)
 	}
+
 	urlService := service.NewURLService(repo)
 	logger := cfg.Logger
-	h := handler.NewHandler(urlService, cfg, storage)
+	h := handler.NewHandler(urlService, cfg, storage, auditManager)
 	r := chi.NewRouter()
 	r.Use(middlewares.WithLogging(&logger))
 	r.Use(middlewares.GzipMiddleware)

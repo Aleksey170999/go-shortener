@@ -15,6 +15,8 @@ type Config struct {
 	Logger          zap.Logger
 	StorageFilePath string
 	DatabaseDSN     string
+	AuditURL        string
+	AuditFile       string
 }
 
 func ParseFlags() *Config {
@@ -23,6 +25,8 @@ func ParseFlags() *Config {
 	logLevel := flag.String("l", "info", "Уровень логирования: debug, info, warn, error")
 	storageFilePath := flag.String("f", "./storage.json", "Путь к файлу хранения данных")
 	databaseDSN := flag.String("d", "", "DSN")
+	auditFile := flag.String("audit-file", "", "Путь к файлу для аудиита")
+	auditURL := flag.String("audit-url", "", "URL для аудиита")
 
 	flag.Parse()
 	if envRunAddr := os.Getenv("SERVER_ADDRESS"); envRunAddr != "" {
@@ -37,6 +41,12 @@ func ParseFlags() *Config {
 	if envDatabaseDSN := os.Getenv("DATABASE_DSN"); envDatabaseDSN != "" {
 		databaseDSN = &envDatabaseDSN
 	}
+	if envAuditFile := os.Getenv("AUDIT_FILE"); envAuditFile != "" {
+		auditFile = &envAuditFile
+	}
+	if envAuditURL := os.Getenv("AUDIT_URL"); envAuditURL != "" {
+		auditURL = &envAuditURL
+	}
 
 	var level zapcore.Level
 	if err := level.UnmarshalText([]byte(*logLevel)); err != nil {
@@ -49,6 +59,8 @@ func ParseFlags() *Config {
 		Logger:          *logger,
 		StorageFilePath: *storageFilePath,
 		DatabaseDSN:     *databaseDSN,
+		AuditURL:        *auditURL,
+		AuditFile:       *auditFile,
 	}
 }
 

@@ -2,51 +2,82 @@
   {
     "uuid": "44b71edb-f2e2-43a4-a7e2-a32238157eaa",
     "original_url": "https://example.com",
-    "short_url": "XJ8lav"
+    "short_url": "XJ8lav",
+    "IsDeleted": false
   },
   {
     "uuid": "06dba380-8c64-40b1-9e6b-98f9de756a0a",
     "original_url": "https://example.com",
-    "short_url": "wD7y4l"
+    "short_url": "wD7y4l",
+    "IsDeleted": false
   },
   {
     "uuid": "0cc46a2c-1ba2-4195-86b2-c58b88586a26",
     "original_url": "https://example.com",
-    "short_url": "EI9hDs"
+    "short_url": "EI9hDs",
+    "IsDeleted": false
   },
   {
     "uuid": "e5e63f30-9509-4c5e-aa5b-2d204f41bec4",
     "original_url": "https://example.com",
-    "short_url": "yrN3Dz"
+    "short_url": "yrN3Dz",
+    "IsDeleted": false
   },
   {
     "uuid": "ad6ed820-79e3-4605-b1e6-886aef29db72",
     "original_url": "https://example.com",
-    "short_url": "2EgGEG"
+    "short_url": "2EgGEG",
+    "IsDeleted": false
   },
   {
     "uuid": "4df507cb-00c1-4db8-9d52-98398141d153",
     "original_url": "https://example.com",
-    "short_url": "3vA-um"
+    "short_url": "3vA-um",
+    "IsDeleted": false
   },
   {
     "uuid": "456d69e2-2b63-4939-bfc6-14af89e10393",
     "original_url": "https://example.com",
-    "short_url": "9sTYGo"
+    "short_url": "9sTYGo",
+    "IsDeleted": false
   },
   {
     "uuid": "25aa4d48-8e90-4d18-9f56-08b1c11f63e1",
     "original_url": "https://example.com",
-    "short_url": "SO63x0"
+    "short_url": "SO63x0",
+    "IsDeleted": false
   },
   {
     "uuid": "ac5dabe2-553d-4565-9159-80a12664cbf5",
     "original_url": "https://example.com",
-    "short_url": "SF4SUs"
+    "short_url": "SF4SUs",
+    "IsDeleted": false
   },
   {
     "uuid": "021ac576-390c-4dca-99a7-94e25db87ec1",
     "original_url": "https://example.com",
-    "short_url": "G5_i-N"
+    "short_url": "G5_i-N",
+    "IsDeleted": false
+  },
+  {
+    "uuid": "e3689f95-f194-477b-adc3-cfbc83215766",
+    "original_url": "https://example.com",
+    "short_url": "vfFmLh",
+    "user_id": "0c2165f8-702a-40ff-a889-47ba92d4769e",
+    "IsDeleted": false
+  },
+  {
+    "uuid": "2e751b8d-c7d3-4603-9f50-922abad8ddfb",
+    "original_url": "https://example.com",
+    "short_url": "IYQIT7",
+    "user_id": "1595dbb1-283d-4f56-9c28-84707d0ef496",
+    "IsDeleted": false
+  },
+  {
+    "uuid": "1ba14798-eff0-4d3c-b9af-4e8955a95022",
+    "original_url": "https://example.com",
+    "short_url": "91-qGq",
+    "user_id": "4dd1c44c-437a-4ad7-be08-385efc961fa4",
+    "IsDeleted": false
   }
 ]
