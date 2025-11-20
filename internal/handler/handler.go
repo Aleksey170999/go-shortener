@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/Aleksey170999/go-shortener/internal/audit"
 	db_pack "github.com/Aleksey170999/go-shortener/internal/config/db"
 
 	"github.com/Aleksey170999/go-shortener/internal/config"
@@ -26,13 +27,19 @@ import (
 var validate = validator.New()
 
 type Handler struct {
-	URLService *service.URLService
-	Cfg        *config.Config
-	Storage    *storage.Storage
+	URLService   *service.URLService
+	Cfg          *config.Config
+	Storage      *storage.Storage
+	AuditManager *audit.AuditManager
 }
 
-func NewHandler(urlService *service.URLService, cfg *config.Config, storage *storage.Storage) *Handler {
-	return &Handler{URLService: urlService, Cfg: cfg, Storage: storage}
+func NewHandler(urlService *service.URLService, cfg *config.Config, storage *storage.Storage, auditManager *audit.AuditManager) *Handler {
+	return &Handler{
+		URLService:   urlService,
+		Cfg:          cfg,
+		Storage:      storage,
+		AuditManager: auditManager,
+	}
 }
 
 func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
@@ -60,9 +67,6 @@ func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	url, err := h.URLService.Shorten(original, "", userID)
-	fmt.Println("___________Создаем____________")
-	fmt.Println(userID)
-	fmt.Println("___________Создаем____________")
 	if err != nil {
 		if errors.Is(err, model.ErrURLAlreadyExists) {
 			fullAddress := fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, url.Short)
@@ -75,6 +79,11 @@ func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
 		return
 	}
+
+	if h.AuditManager != nil {
+		go h.AuditManager.LogEvent(r.Context(), "shorten", userID, original)
+	}
+
 	h.Storage.LoadToStorage(url)
 	fullAddress := fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, url.Short)
 	w.WriteHeader(http.StatusCreated)
@@ -87,50 +96,83 @@ func (h *Handler) RedirectHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing short url id", http.StatusBadRequest)
 		return
 	}
-	original, err := h.URLService.Resolve(shortURL)
+	url, err := h.URLService.Resolve(shortURL)
 	if err != nil {
 		http.Error(w, "not found", http.StatusNotFound)
 		return
 	}
-	http.Redirect(w, r, original, http.StatusTemporaryRedirect)
+	if url.IsDeleted {
+		http.Error(w, "gone", http.StatusGone)
+		return
+	}
+
+	userID, _ := middlewares.GetUserID(r)
+	if h.AuditManager != nil && userID != "" {
+		go h.AuditManager.LogEvent(r.Context(), "follow", userID, url.Original)
+	}
+
+	http.Redirect(w, r, url.Original, http.StatusTemporaryRedirect)
 }
 
 func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) {
 	var req model.ShortenJSONRequest
-	dec := json.NewDecoder(r.Body)
-	if err := dec.Decode(&req); err != nil {
-		h.Cfg.Logger.Debug("cannot decode request JSON body", zap.Error(err))
-		w.WriteHeader(http.StatusInternalServerError)
+
+	err := json.NewDecoder(r.Body).Decode(&req)
+	if err != nil {
+		h.Cfg.Logger.Error("error decoding request body", zap.Error(err))
+		http.Error(w, "bad request", http.StatusBadRequest)
 		return
 	}
+
 	if req.URL == "" {
 		http.Error(w, "empty url", http.StatusBadRequest)
 		return
 	}
 
 	userID, _ := middlewares.GetUserID(r)
+
+	if userID == "" {
+		userID = uuid.New().String()
+
+		http.SetCookie(w, &http.Cookie{
+			Name:     "user_id",
+			Value:    userID,
+			Path:     "/",
+			HttpOnly: true,
+		})
+	}
+
 	url, err := h.URLService.Shorten(req.URL, "", userID)
 	if err != nil {
 		if errors.Is(err, model.ErrURLAlreadyExists) {
-			resp := model.ShortenJSONResponse{
+			response := model.ShortenJSONResponse{
 				Result: fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, url.Short),
 			}
+
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusConflict) // 409
-			json.NewEncoder(w).Encode(resp)
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(response)
 			return
 		}
-		http.Error(w, "failed to shorten url", http.StatusInternalServerError)
+
+		h.Cfg.Logger.Error("error shortening url", zap.Error(err))
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
+	if h.AuditManager != nil {
+		go h.AuditManager.LogEvent(r.Context(), "shorten", userID, req.URL)
+	}
+
 	h.Storage.LoadToStorage(url)
-	resp := model.ShortenJSONResponse{
+
+	response := model.ShortenJSONResponse{
 		Result: fmt.Sprintf("%s/%s", h.Cfg.ReturnPrefix, url.Short),
 	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(response)
 }
 
 func (h *Handler) PingDBHandler(w http.ResponseWriter, r *http.Request) {
@@ -177,10 +219,6 @@ func (h *Handler) ShortenJSONURLBatchHandler(w http.ResponseWriter, r *http.Requ
 
 func (h *Handler) GetUserURLsHandler(w http.ResponseWriter, r *http.Request) {
 	userID, err := middlewares.GetUserID(r)
-	fmt.Println("___________Получаем___________")
-	fmt.Println(userID)
-	fmt.Println("___________Получаем___________")
-	fmt.Println(userID)
 
 	w.Header().Set("Content-Type", "application/json")
 	if userID == "" {
@@ -224,4 +262,24 @@ func (h *Handler) GetUserURLsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *Handler) BatchDeleteUserURLsHandler(w http.ResponseWriter, r *http.Request) {
+	userID, err := middlewares.GetUserID(r)
+	if err != nil {
+		log.Print(err)
+	}
+	var shortUrls []string
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&shortUrls); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	go func(shortUrls []string, userID string) {
+		err := h.URLService.BatchDelete(shortUrls, userID)
+		if err != nil {
+			log.Printf("[BatchDeleteUserURLsHandler] async BatchDelete error: %v", err)
+		}
+	}(shortUrls, userID)
+	w.WriteHeader(http.StatusAccepted)
 }

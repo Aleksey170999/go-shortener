@@ -3,10 +3,11 @@ package model
 import "errors"
 
 type URL struct {
-	ID       string `json:"uuid"`
-	Original string `json:"original_url"`
-	Short    string `json:"short_url"`
-	UserID   string `json:"user_id,omitempty"`
+	ID        string `json:"uuid"`
+	Original  string `json:"original_url"`
+	Short     string `json:"short_url"`
+	UserID    string `json:"user_id,omitempty"`
+	IsDeleted bool   `db:"is_deleted"`
 }
 
 type UserURLsResponse struct {
