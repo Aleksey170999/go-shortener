@@ -26,6 +26,8 @@ import (
 
 var validate = validator.New()
 
+// Handler provides all the HTTP handlers for the URL shortener service.
+// It contains all the necessary dependencies to handle incoming requests.
 type Handler struct {
 	URLService   *service.URLService
 	Cfg          *config.Config
@@ -33,6 +35,16 @@ type Handler struct {
 	AuditManager *audit.AuditManager
 }
 
+// NewHandler creates a new instance of Handler with the provided dependencies.
+//
+// Parameters:
+//   - urlService: Service for URL shortening and management operations
+//   - cfg: Application configuration
+//   - storage: Storage for persisting URLs
+//   - auditManager: Manager for handling audit logs
+//
+// Returns:
+//   - *Handler: A new Handler instance with the provided dependencies
 func NewHandler(urlService *service.URLService, cfg *config.Config, storage *storage.Storage, auditManager *audit.AuditManager) *Handler {
 	return &Handler{
 		URLService:   urlService,
@@ -42,6 +54,17 @@ func NewHandler(urlService *service.URLService, cfg *config.Config, storage *sto
 	}
 }
 
+// ShortenURLHandler handles the URL shortening request.
+// It reads the URL from the request body, validates it, and returns a shortened version.
+//
+// Request:
+//   - Method: POST
+//   - Body: The URL to be shortened as plain text
+//
+// Responses:
+//   - 201 Created: On successful URL shortening, returns the shortened URL
+//   - 400 Bad Request: If the request body is empty or invalid
+//   - 500 Internal Server Error: If there's an error processing the request
 func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -90,6 +113,18 @@ func (h *Handler) ShortenURLHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(fullAddress))
 }
 
+// RedirectHandler handles the redirection of shortened URLs to their original URLs.
+// It extracts the short URL ID from the request path and performs the redirection.
+//
+// Request:
+//   - Method: GET
+//   - Path: /{id}
+//
+// Responses:
+//   - 307 Temporary Redirect: Redirects to the original URL
+//   - 400 Bad Request: If the short URL ID is missing
+//   - 404 Not Found: If the short URL is not found or has been deleted
+//   - 500 Internal Server Error: If there's an error processing the request
 func (h *Handler) RedirectHandler(w http.ResponseWriter, r *http.Request) {
 	shortURL := chi.URLParam(r, "id")
 	if shortURL == "" {
@@ -114,6 +149,25 @@ func (h *Handler) RedirectHandler(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, url.Original, http.StatusTemporaryRedirect)
 }
 
+// ShortenJSONURLHandler handles URL shortening requests in JSON format.
+// It accepts a JSON payload with the URL to be shortened and returns a JSON response
+// containing the shortened URL.
+//
+// Request:
+//   - Method: POST
+//   - Content-Type: application/json
+//   - Body: JSON object with an 'url' field containing the URL to be shortened
+//
+// Example Request:
+//
+//	{
+//	  "url": "https://example.com/long/url/to/be/shortened"
+//	}
+//
+// Responses:
+//   - 201 Created: On successful shortening, returns a JSON response with the shortened URL
+//   - 400 Bad Request: If the request body is invalid or missing required fields
+//   - 500 Internal Server Error: If there's an error processing the request
 func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) {
 	var req model.ShortenJSONRequest
 
@@ -175,6 +229,12 @@ func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(response)
 }
 
+// PingDBHandler handles the /ping endpoint to check database connectivity.
+// Returns:
+//   - 200 OK if the database is reachable
+//   - 500 Internal Server Error if the database is not available
+//
+// This handler is used for health checks and monitoring.
 func (h *Handler) PingDBHandler(w http.ResponseWriter, r *http.Request) {
 	err := db_pack.PingDB(h.Cfg.DatabaseDSN)
 	if err != nil {
@@ -184,6 +244,27 @@ func (h *Handler) PingDBHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+// ShortenJSONURLBatchHandler handles batch URL shortening requests.
+// Accepts a JSON array of URLs and returns their shortened versions.
+//
+// Request body should be a JSON array of objects with the following structure:
+//
+//	[
+//	  {"correlation_id": "<unique_id>", "original_url": "<url>"},
+//	  ...
+//	]
+//
+// Response is a JSON array of objects with the following structure:
+//
+//	[
+//	  {"correlation_id": "<same_id>", "short_url": "<short_url>"},
+//	  ...
+//	]
+//
+// Returns:
+//   - 201 Created on successful batch processing
+//   - 400 Bad Request for invalid input
+//   - 500 Internal Server Error for processing failures
 func (h *Handler) ShortenJSONURLBatchHandler(w http.ResponseWriter, r *http.Request) {
 	var req []model.RequestURLItem
 	dec := json.NewDecoder(r.Body)
@@ -217,6 +298,20 @@ func (h *Handler) ShortenJSONURLBatchHandler(w http.ResponseWriter, r *http.Requ
 	json.NewEncoder(w).Encode(resp)
 }
 
+// GetUserURLsHandler retrieves all URLs shortened by the current user.
+// The user is identified by the session cookie.
+//
+// Response is a JSON array of objects with the following structure:
+//
+//	[
+//	  {"short_url": "<short_url>", "original_url": "<original_url>"},
+//	  ...
+//	]
+//
+// Returns:
+//   - 200 OK with the list of URLs
+//   - 204 No Content if no URLs found for the user
+//   - 500 Internal Server Error for processing failures
 func (h *Handler) GetUserURLsHandler(w http.ResponseWriter, r *http.Request) {
 	userID, err := middlewares.GetUserID(r)
 
@@ -264,6 +359,20 @@ func (h *Handler) GetUserURLsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
+// BatchDeleteUserURLsHandler handles batch deletion of URLs for the current user.
+// The deletion is processed asynchronously.
+//
+// Request body should be a JSON array of short URL identifiers to delete:
+//
+//	["id1", "id2", ...]
+//
+// Returns:
+//   - 202 Accepted if the deletion request was accepted for processing
+//   - 400 Bad Request for invalid input
+//   - 401 Unauthorized if user is not authenticated
+//   - 500 Internal Server Error for processing failures
+//
+// Note: This is an asynchronous operation. The actual deletion happens in a separate goroutine.
 func (h *Handler) BatchDeleteUserURLsHandler(w http.ResponseWriter, r *http.Request) {
 	userID, err := middlewares.GetUserID(r)
 	if err != nil {
