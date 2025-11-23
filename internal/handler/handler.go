@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/Aleksey170999/go-shortener/internal/audit"
-	db_pack "github.com/Aleksey170999/go-shortener/internal/config/db"
 
 	"github.com/Aleksey170999/go-shortener/internal/config"
 	"github.com/Aleksey170999/go-shortener/internal/middlewares"
@@ -236,10 +235,9 @@ func (h *Handler) ShortenJSONURLHandler(w http.ResponseWriter, r *http.Request) 
 //
 // This handler is used for health checks and monitoring.
 func (h *Handler) PingDBHandler(w http.ResponseWriter, r *http.Request) {
-	err := db_pack.PingDB(h.Cfg.DatabaseDSN)
-	if err != nil {
-		http.Error(w, "failed to ping DB", http.StatusInternalServerError)
-		w.WriteHeader(http.StatusInternalServerError)
+	if err := h.URLService.PingDB(); err != nil {
+		http.Error(w, "failed to ping DB: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 }

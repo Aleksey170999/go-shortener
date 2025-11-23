@@ -9,28 +9,6 @@ import (
 	"github.com/pressly/goose/v3"
 )
 
-// PingDB verifies the connection to the database using the provided DSN.
-// It attempts to establish a connection and ping the database to ensure it's reachable.
-//
-// Parameters:
-//   - databaseDSN: Data Source Name for the database connection
-//
-// Returns:
-//   - error: An error if the connection or ping fails, nil otherwise
-func PingDB(databaseDSN string) error {
-	db, err := sql.Open("postgres", databaseDSN)
-
-	if err != nil {
-		return fmt.Errorf("unable to connect to DB: %w", err)
-	}
-	if err := db.Ping(); err != nil {
-		return fmt.Errorf("unable to ping DB: %w", err)
-	}
-	defer db.Close()
-
-	return nil
-}
-
 // ApplyMigrations applies all available database migrations using the goose migration tool.
 // It sets the PostgreSQL dialect and runs all migrations from the "./migrations/" directory.
 //

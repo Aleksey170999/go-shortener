@@ -4,5 +4,5 @@
 // The main interface is URLRepository which defines the contract for URL storage operations.
 // Two implementations are provided:
 // - memoryURLRepository: In-memory storage using a map
-// - dataBaseURLRepository: Persistent storage using PostgreSQL
+// - DataBaseURLRepository: Persistent storage using PostgreSQL
 package repository

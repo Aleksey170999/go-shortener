@@ -1,8 +1,10 @@
 package service
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/base64"
+	"fmt"
 	"log"
 	"time"
 
@@ -70,6 +72,22 @@ func (s *URLService) flushBatch(batch []deleteRequest) {
 			log.Printf("[flushBatch] batch delete error: %v", err)
 		}
 	}
+}
+
+// Ping DataBase
+func (s *URLService) PingDB() error {
+	// Check if the repository is a database repository
+	dbRepo, ok := s.repo.(*repository.DataBaseURLRepository)
+	if !ok {
+		return fmt.Errorf("database repository not available")
+	}
+
+	// Create a context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Ping the database
+	return dbRepo.DB.PingContext(ctx)
 }
 
 // Shorten creates a new shortened URL for the given original URL.

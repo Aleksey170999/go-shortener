@@ -10,33 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPingDB(t *testing.T) {
-	// Test with an invalid DSN
-	t.Run("invalid DSN", func(t *testing.T) {
-		err := PingDB("invalid-dsn")
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unable to ping DB")
-	})
-
-	// Test with a non-existent database
-	t.Run("non-existent database", func(t *testing.T) {
-		dsn := "postgres://nonexistent:password@localhost:5432/nonexistent?sslmode=disable"
-		err := PingDB(dsn)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "unable to ping DB")
-	})
-
-	// Test with a valid DSN (if a test database is available)
-	if testDSN := os.Getenv("TEST_DATABASE_DSN"); testDSN != "" {
-		t.Run("valid DSN", func(t *testing.T) {
-			err := PingDB(testDSN)
-			assert.NoError(t, err)
-		})
-	} else {
-		t.Skip("Skipping test with valid DSN as TEST_DATABASE_DSN is not set")
-	}
-}
-
 func TestApplyMigrations(t *testing.T) {
 	// Skip if test database is not configured
 	if os.Getenv("TEST_DATABASE_DSN") == "" {
